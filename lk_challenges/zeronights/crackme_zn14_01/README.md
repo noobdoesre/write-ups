@@ -33,9 +33,9 @@ The format is following:
 ```
 size = 1;
 
-size = size * 2 + (1)
+size = size * 2 + (0|1)
 
-size = size * 2 + (1)
+size = size * 2 + (0|1)
 ```
 
 For example:
