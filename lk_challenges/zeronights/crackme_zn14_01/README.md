@@ -1,4 +1,4 @@
-**I'm a noob trying to get better with re and pwn. I wrote this write-up just not to lose the knowledge I got and share it with u, folks \|_|/**
+**I'm a noob trying to get better with re and pwn. I wrote this write-up just not to lose the knowledge I got and share it with u, folks \\|_|/**
 
 I really liked this challenge because it teaches a very important approach of reverse engeneering: don't dig every instruction - sometimes it's better to see a big picture.
 
