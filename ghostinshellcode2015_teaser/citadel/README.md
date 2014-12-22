@@ -121,7 +121,7 @@ Now look where modules reside:
 0x7ff062744000     0x7ff062745000     0x1000    0x15000 /lib/x86_64-linux-gnu/libgcc_s.so.1
 ...
 ```
-Let's write a small python to make our job easier:
+Let's write a small python script to make our job easier:
 
 ```python
 import sys
