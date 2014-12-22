@@ -21,6 +21,7 @@ fuser -k -n tcp 5060
 
 ####What the hell is going on over here \\(?_?)/
 
+Firstly we should understand protocol.
 'Strings' feature of IDA is very useful in this situation - there is a bunch of c++ code and so it's pretty hard to reverse it. The format of commands is easy to get.
 There are several commands:
 
